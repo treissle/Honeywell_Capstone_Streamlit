@@ -61,7 +61,8 @@ def main():
             
             with st.expander(uploaded_file.name, icon=icon):
                 captions = [f"Page {i+1}" for i in range(len(pages))]
-                st.image(pages, caption=captions)
+                with st.container(height=300, border=True):
+                    st.image(pages, caption=captions)
     
 
     elif input_method == "Provide Text Portion" and text_portion:
