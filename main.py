@@ -1,6 +1,6 @@
 import streamlit as st
 from io import BytesIO
-from utils import DocumentProcessor, classify_text
+from cui_utils import DocumentProcessor, classify_text
 from pdf2image import convert_from_bytes
 import torch
 torch.classes.__path__ = []
@@ -33,38 +33,46 @@ def main():
 
     with col2:
         if input_method == "Upload File(s)":
-            uploaded_files = st.file_uploader("Upload Documents", type=["pdf", "docx"], accept_multiple_files=True)
+            uploaded_files = st.file_uploader("Upload Documents", type=["pdf"], accept_multiple_files=True)
         elif input_method == "Provide Folder Path":
             folder_path = st.text_input("Provide folder path and press enter to classify")
         else:
-            text_portion = st.text_area("Provide text portion to be classified")
+            text_portion = st.text_area("Provide text portion to be classified and press CTRL + ENTER")
 
     st.divider()
    
     if input_method == "Upload File(s)" and uploaded_files:
         for uploaded_file in uploaded_files:
-            with st.expander(uploaded_file.name):
-                file_bytes = uploaded_file.getvalue()
-                uploaded_file.seek(0)
+            
+            file_bytes = uploaded_file.getvalue()
+            uploaded_file.seek(0)
 
-                try:
-                    processed_document = DocumentProcessor(BytesIO(file_bytes))
-                
-                except Exception as e:
-                    st.error(f"Error processing file {uploaded_file.name}: {e}")
-                    continue
+            # try:
+            #     processed_document = DocumentProcessor(BytesIO(file_bytes))
+            
+            # except Exception as e:
+            #     st.error(f"Error processing file {uploaded_file.name}: {e}")
+            #     continue
+            
+            # icon="⚠️" if processed_document.file_CUI_classification else "✅"
+            icon = "⭐"
+
+            pages = convert_from_bytes(file_bytes)
+
+            with st.expander(uploaded_file.name, icon=icon):
+                st.image(pages)
     
 
     elif input_method == "Provide Text Portion" and text_portion:
         # text_portion_classification = classify_text(text_portion)
-        text_portion_classification = False
+        text_portion_classification = True
 
         if text_portion_classification:
             st.badge("CUI", icon="⚠️", color="red")
         else:
             st.badge("No CUI", icon="✅", color="green")
         
-        st.code(text_portion, language="None")
+        st.code(text_portion, language=None)
 
 
 if __name__ == "__main__":
