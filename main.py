@@ -2,6 +2,8 @@ import streamlit as st
 from io import BytesIO
 from utils import DocumentProcessor, classify_text
 from pdf2image import convert_from_bytes
+import torch
+torch.classes.__path__ = []
 
 
 def main():
