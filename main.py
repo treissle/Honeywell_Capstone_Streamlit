@@ -57,14 +57,14 @@ def main():
 
     elif input_method == "Provide Text Portion" and text_portion:
         # text_portion_classification = classify_text(text_portion)
-        text_portion_classification = True
+        text_portion_classification = False
 
         if text_portion_classification:
             st.badge("CUI", icon="⚠️", color="red")
         else:
             st.badge("No CUI", icon="✅", color="green")
         
-        st.text(text_portion)
+        st.code(text_portion, language="None")
 
 
 if __name__ == "__main__":
