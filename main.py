@@ -43,24 +43,25 @@ def main():
    
     if input_method == "Upload File(s)" and uploaded_files:
         for uploaded_file in uploaded_files:
-            
-            file_bytes = uploaded_file.getvalue()
-            uploaded_file.seek(0)
+            try:
+                file_bytes = uploaded_file.getvalue()
+                # uploaded_file.seek(0)
 
-            # try:
-            #     processed_document = DocumentProcessor(BytesIO(file_bytes))
+                # processed_document = DocumentProcessor(BytesIO(file_bytes))
+
+                pages = convert_from_bytes(file_bytes)
             
-            # except Exception as e:
-            #     st.error(f"Error processing file {uploaded_file.name}: {e}")
-            #     continue
+            except Exception as e:
+                st.error(f"Error processing file {uploaded_file.name}: {e}")
+                continue
             
             # icon="⚠️" if processed_document.file_CUI_classification else "✅"
             icon = "⭐"
 
-            pages = convert_from_bytes(file_bytes)
-
+            
             with st.expander(uploaded_file.name, icon=icon):
-                st.image(pages)
+                captions = [f"Page {i+1}" for i in range(len(pages))]
+                st.image(pages, caption=captions)
     
 
     elif input_method == "Provide Text Portion" and text_portion:
