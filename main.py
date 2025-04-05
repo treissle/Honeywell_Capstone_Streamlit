@@ -1,6 +1,6 @@
 import streamlit as st
 from io import BytesIO
-from cui_utils import DocumentProcessor, classify_text
+from utils import DocumentProcessor, classify_text
 from pdf2image import convert_from_bytes
 
 
