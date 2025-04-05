@@ -38,3 +38,6 @@ def main():
             folder_path = st.text_input("Provide folder path and press enter to classify")
         else:
             text_portion = st.text_area("Provide text portion to be classified")
+
+if __name__ == "__main__":
+    main()
