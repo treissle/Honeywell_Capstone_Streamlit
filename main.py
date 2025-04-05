@@ -60,9 +60,9 @@ def main():
         text_portion_classification = True
 
         if text_portion_classification:
-            st.badge("⚠️ CUI")
+            st.badge("CUI", icon="⚠️", color="red")
         else:
-            st.badge("✅ No CUI")
+            st.badge("No CUI", icon="✅", color="green")
         
         st.text(text_portion)
 
