@@ -41,7 +41,7 @@ def main():
 
     st.divider()
    
-    if uploaded_files:
+    if input_method == "Upload File(s)" and uploaded_files:
         for uploaded_file in uploaded_files:
             with st.expander(uploaded_file.name):
                 file_bytes = uploaded_file.getvalue()
@@ -55,7 +55,7 @@ def main():
                     continue
     
 
-    elif text_portion:
+    elif input_method == "Provide Text Portion" and text_portion:
         # text_portion_classification = classify_text(text_portion)
         text_portion_classification = True
 
