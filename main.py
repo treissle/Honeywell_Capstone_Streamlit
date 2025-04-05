@@ -61,7 +61,7 @@ def main():
             
             with st.expander(uploaded_file.name, icon=icon):
                 captions = [f"Page {i+1}" for i in range(len(pages))]
-                with st.container(height=300, border=True):
+                with st.container(height=450, border=True):
                     st.image(pages, caption=captions)
     
 
