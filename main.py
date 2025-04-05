@@ -1,9 +1,10 @@
 import streamlit as st
 from io import BytesIO
-from utils import DocumentProcessor, classify_text
+from cui_utils import DocumentProcessor, classify_text
 from pdf2image import convert_from_bytes
 import torch
 torch.classes.__path__ = []
+
 
 
 def main():
@@ -19,7 +20,6 @@ def main():
         or **green** if they do not.
         """
     )
-
 
     # Create two columns for input method selection and input field
     col1, col2 = st.columns(2)
@@ -38,6 +38,34 @@ def main():
             folder_path = st.text_input("Provide folder path and press enter to classify")
         else:
             text_portion = st.text_area("Provide text portion to be classified")
+
+    st.divider()
+   
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            with st.expander(uploaded_file.name):
+                file_bytes = uploaded_file.getvalue()
+                uploaded_file.seek(0)
+
+                try:
+                    processed_document = DocumentProcessor(BytesIO(file_bytes))
+                
+                except Exception as e:
+                    st.error(f"Error processing file {uploaded_file.name}: {e}")
+                    continue
+    
+
+    elif text_portion:
+        # text_portion_classification = classify_text(text_portion)
+        text_portion_classification = True
+
+        if text_portion_classification:
+            st.badge("⚠️ CUI")
+        else:
+            st.badge("✅ No CUI")
+        
+        st.text(text_portion)
+
 
 if __name__ == "__main__":
     main()
