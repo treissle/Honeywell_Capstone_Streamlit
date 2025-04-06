@@ -75,7 +75,8 @@ def main():
             st.badge("No CUI", icon="✅", color="green")
             st.subheader("This text portion likely does not contain CUI")
         
-        st.code(text_portion, language=None)
+        with st.container(border=True):
+            st.text(text_portion)
 
 
 if __name__ == "__main__":
