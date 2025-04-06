@@ -9,6 +9,8 @@ from docling.datamodel.document import DoclingDocument
 from typing import List, Dict, Union
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from PIL import ImageDraw
+from pdf2image import convert_from_bytes
 
 
 class DocumentProcessor:
@@ -24,6 +26,14 @@ class DocumentProcessor:
     """
     def __init__(self, file: Union[str, BytesIO]):
         self.file = file
+
+        # Store raw bytes early to avoid I/O on closed file
+        if isinstance(file, BytesIO):
+            self.file_bytes = file.getvalue()
+        elif isinstance(file, str):
+            with open(file, 'rb') as f:
+                self.file_bytes = f.read()
+
         self.file_hash = self.calculate_hash(file=file)
 
         self.conn = sqlite3.connect('document_processor.db')
@@ -78,6 +88,8 @@ class DocumentProcessor:
             text_hash TEXT,
             self_ref TEXT,
             page_no INTEGER,
+            page_width REAL,
+            page_height REAL,
             bbox TEXT,
             PRIMARY KEY (file_hash, text_hash),
             FOREIGN KEY (file_hash) REFERENCES file_hashes (file_hash),
@@ -170,23 +182,23 @@ class DocumentProcessor:
         Returns:
         - DoclingDocument: Converted document
         """
-        try:
-            converter = DocumentConverter()
-            
-            # File path string
-            if isinstance(self.file, str):
-                result = converter.convert(self.file) 
-            
-            # BytesIO object
-            elif isinstance(self.file, BytesIO):
-                self.file.seek(0)  # Ensure the file is read from the beginning
-                doc_stream = DocumentStream(stream=self.file)
-                result = converter.convert(doc_stream)
+        # try:
+        converter = DocumentConverter()
+        
+        # File path string
+        if isinstance(self.file, str):
+            result = converter.convert(self.file) 
+        
+        # BytesIO object
+        elif isinstance(self.file, BytesIO):
+            self.file.seek(0)  # Ensure the file is read from the beginning
+            doc_stream = DocumentStream(name='name', stream=self.file)
+            result = converter.convert(doc_stream)
 
-            return result.document
+        return result.document
 
-        except Exception as e:
-            raise ValueError(f"Error converting document: {e}")
+        # except Exception as e:
+        #     raise ValueError(f"Error converting document: {e}")
 
 
     def CUI_classification(self) -> Union[bool, Dict[str, bool]]:
@@ -234,18 +246,25 @@ class DocumentProcessor:
 
             for text_hash, text in zip(self.text_hashes.keys(), self.docling_document.texts):
                 for prov_item in text.prov:
+                    
+                    page_item = self.docling_document.pages[prov_item.page_no]
+
+                    bbox_json = json.dumps({
+                        'l': prov_item.bbox.l,
+                        't': prov_item.bbox.t,
+                        'r': prov_item.bbox.r,
+                        'b': prov_item.bbox.b
+                    })
+                    
                     document_details_data.append(
                         (
                             self.file_hash,
                             text_hash,
                             text.self_ref,
                             prov_item.page_no,
-                            json.dumps({
-                                'l': prov_item.bbox.l,
-                                't': prov_item.bbox.t,
-                                'r': prov_item.bbox.r,
-                                'b': prov_item.bbox.b
-                            })
+                            page_item.size.width,
+                            page_item.size.height,
+                            bbox_json
                         )
                     )
 
@@ -260,7 +279,7 @@ class DocumentProcessor:
                     text_hashes_data
                 )
                 self.cursor.executemany(
-                    'INSERT INTO document_details (file_hash, text_hash, self_ref, page_no, bbox) VALUES (?, ?, ?, ?, ?)',
+                    'INSERT INTO document_details (file_hash, text_hash, self_ref, page_no, page_width, page_height, bbox) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     document_details_data
                 )
 
@@ -296,6 +315,75 @@ class DocumentProcessor:
             raise ValueError(f"Unsupported export format: {export_format}")
 
 
+    def draw_bounding_boxes(self) -> list:
+        """
+        Retrieve bounding box information from the database using the file hash,
+        convert the document to page images, draw the bounding boxes on each page,
+        and return a list of annotated images
+        
+        Returns:
+            list: List of PIL.Image objects with the drawn bounding boxes
+        """
+        # if isinstance(self.file, str):
+        #     with open(self.file, 'rb') as f:
+        #         file_bytes = f.read()
+        # elif isinstance(self.file, BytesIO):
+        #     file_bytes = self.file.getvalue()
+        
+        images = []
+        images = convert_from_bytes(self.file_bytes)
+
+        bounding_boxes_by_page = {}
+        conn = sqlite3.connect('document_processor.db')
+        cursor = conn.cursor()
+        query = """
+            SELECT d.page_no, d.page_width, d.page_height, d.bbox, t.text_CUI_classification
+            FROM document_details d
+            JOIN text_hashes t ON d.text_hash = t.text_hash
+            WHERE d.file_hash = ?
+        """
+        cursor.execute(query, (self.file_hash,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        for page_no, page_width, page_height, bbox_str, text_CUI_classification in rows:
+            # page_no = int(page_no)
+            bbox = json.loads(bbox_str)
+            x = bbox['l']
+
+            y_top = page_height - bbox['t']
+            y_bottom = page_height - bbox['b']
+            y = min(y_top, y_bottom)
+
+            w = bbox['r'] - bbox['l']
+            h = abs(bbox['b'] - bbox['t'])
+
+            box_tuple = (x, y, w, h, bool(text_CUI_classification))
+
+            if page_no not in bounding_boxes_by_page:
+                bounding_boxes_by_page[page_no] = [] #defaultdict(list)
+            bounding_boxes_by_page[page_no].append(box_tuple)
+
+
+        annotated_images = []
+        scale = 25/9
+
+        for i, image in enumerate(images, start=1):
+            annotated_image = image.copy()
+            
+            if i in bounding_boxes_by_page:
+                draw = ImageDraw.Draw(annotated_image)
+                
+                for x, y, w, h, is_CUI in bounding_boxes_by_page[i]:
+                    color = "red" if is_CUI else "green"
+                    draw.rectangle([(x*scale, y*scale), (x*scale + w*scale, y*scale + h*scale)], outline=color, width=2)
+            
+            annotated_images.append(annotated_image)
+
+        return annotated_images
+
+
+
 def classify_text(text: str) -> bool:
     """
     Machine learning model to conduct binary text classification
@@ -306,10 +394,10 @@ def classify_text(text: str) -> bool:
     Returns:
         bool: Text CUI classification
     """
-    model_path = 'trained_model'
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSequenceClassification.from_pretrained(model_path)
-    # model.eval()
+    # Load the tokenizer and model from Hugging Face
+    model_name = 'Sa5m/distilbert-base-uncased-cui'
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
     encoded = tokenizer(text, return_tensors='pt', truncation=True, max_length=128)
 
